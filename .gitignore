@@ -51,8 +51,10 @@ checkpoints/
 
 # Data files (use DVC or external storage)
 data/raw/*.csv
+data/raw/*.tsv
 data/raw/*.json
 data/raw/*.txt
+data/processed/*.csv
 data/processed/*.pkl
 data/processed/*.npy
 *.db
