@@ -1,177 +1,99 @@
-# ��� Fake News Detection System
+# Fake News Detection
 
-Multi-class fake news detection using Deep Learning, XAI, and Real-Time API
+A multi-class fake news detection system powered by fine-tuned transformer models. It classifies news articles into four categories — **True**, **Fake**, **Satire**, and **Bias** — with real-time explainability via gradient saliency and SHAP. Built as an NTCC project using DistilBERT, RoBERTa, and XLNet trained on a combined dataset of ~80k articles from ISOT, LIAR, BuzzFeed, PolitiFact, and satire sources.
 
-## ��� Project Overview
+The system includes a FastAPI backend, a React + Tailwind frontend with a live news feed powered by GNews, user feedback collection stored in Supabase for active learning, and an explainability tab showing per-word attention highlights and on-demand SHAP analysis using RoBERTa.
 
-This system classifies news articles into four categories:
-- ✅ **True**: Verified factual news
-- ❌ **Fake**: Fabricated or misleading content
-- ��� **Satire**: Humorous or satirical content
-- ⚖️ **Bias**: Politically or ideologically biased reporting
+---
 
-## ���️ Architecture
+## Models
 
-- **Models**: DistilBERT, RoBERTa, XLNet
-- **Backend**: FastAPI + PostgreSQL
-- **Frontend**: React + Tailwind CSS
-- **XAI**: SHAP and LIME explanations
-- **MLOps**: Weights & Biases tracking
+| Model      | Metrics                          |
+| ---------- | -------------------------------- |
+| DistilBERT | `models/distilbert/metrics.json` |
+| RoBERTa    | `models/roberta/metrics.json`    |
+| XLNet      | `models/xlnet/metrics.json`      |
 
-## ��� Team Members
+All models are fine-tuned on `data/processed/Dataset_Clean.csv` and stored locally under `models/`.
 
-| Name | Role | GitHub | Contact |
-|------|------|--------|---------|
-| [Name 1] | Project Lead / ML Engineer | @username1 | email1 |
-| [Name 2] | Data Engineer | @username2 | email2 |
-| [Name 3] | Backend Developer | @username3 | email3 |
-| [Name 4] | Frontend Developer | @username4 | email4 |
+---
 
-## ��� Quick Start
+## Setup
 
-### Prerequisites
-- Python 3.9+
-- Node.js 16+
-- Git
-- Docker (optional)
-
-### Setup
+**Prerequisites:** Python 3.9+, Node.js 18+
 
 ```bash
-# Clone repository
 git clone https://github.com/your-org/fake-news-detection.git
 cd fake-news-detection
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Setup pre-commit hooks
-pre-commit install
+cp .env.example .env
+# Fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, GNEWS_API_KEY
 ```
 
-### Running the Application
+Run `scripts/setup_supabase.sql` in the Supabase SQL Editor to create the schema.
 
 ```bash
-# Start backend
-cd src/api
-uvicorn main:app --reload
+# Backend
+python -m uvicorn src.api.main:app --reload
 
-# Start frontend (new terminal)
+# Frontend (new terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-## ��� Project Structure
+Frontend: `http://localhost:5173` — API: `http://localhost:8000` — Docs: `http://localhost:8000/docs`
+
+---
+
+## Usage
+
+- Paste any news article text, select a model, and click Analyze
+- The result card shows the predicted label, confidence, per-class probabilities, and an Explain tab
+- The Explain tab auto-loads gradient saliency highlights; click "Explain Deeply" for SHAP analysis (uses RoBERTa, ~15s on CPU)
+- The Live News tab shows real-time articles from GNews — click any to analyze
+- The News page (`/news`) shows a newspaper layout with articles grouped by predicted label
+- Use the feedback panel to submit corrections for active learning
+
+---
+
+## Project Structure
 
 ```
 fake-news-detection/
-├── data/                   # Datasets (not tracked in git)
+├── data/
 │   ├── raw/               # Original datasets
-│   ├── processed/         # Cleaned and tokenized data
-│   └── feedback/          # User feedback for active learning
-├── models/                # Trained models (use DVC or external storage)
+│   └── processed/         # Cleaned training data
+├── models/
 │   ├── distilbert/
 │   ├── roberta/
-│   └── checkpoints/
-├── notebooks/             # Jupyter notebooks for exploration
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_preprocessing.ipynb
-│   ├── 03_model_training.ipynb
-│   └── 04_evaluation.ipynb
-├── src/                   # Source code
-│   ├── data/             # Data processing scripts
-│   ├── models/           # Model training and evaluation
-│   ├── api/              # FastAPI backend
-│   ├── explainability/   # SHAP/LIME integration
-│   └── utils/            # Helper functions
-├── frontend/              # React application
-│   ├── src/
-│   └── public/
-├── tests/                 # Unit and integration tests
-├── docs/                  # Documentation
-├── configs/               # Configuration files
-├── scripts/               # Utility scripts
-├── Dockerfile
-├── docker-compose.yml
+│   └── xlnet/
+├── notebooks/
+├── scripts/
+│   ├── setup_supabase.sql
+│   └── download_models.py
+├── src/
+│   ├── api/main.py
+│   ├── models/            # inference, train, evaluate
+│   ├── data/              # preprocessing, dataset, gnews_collector
+│   └── utils/             # supabase_client, gnews_client
+├── frontend/
+├── .env.example
 ├── requirements.txt
-└── README.md
+└── docker-compose.yml
 ```
 
-## ��� Development Workflow
+---
 
-### Branch Strategy
-- `main`: Production-ready code
-- `develop`: Integration branch
-- `feature/*`: New features
-- `bugfix/*`: Bug fixes
-- `hotfix/*`: Critical production fixes
+## Stack
 
-### Commit Convention
-Follow conventional commits:
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation changes
-- `style:` Code style changes
-- `refactor:` Code refactoring
-- `test:` Adding tests
-- `chore:` Maintenance tasks
-
-Example: `feat: add SHAP explainability module`
-
-## ��� Datasets Used
-
-1. **ISOT Fake News Dataset** (~44k articles)
-2. **LIAR Dataset** (~12.8k statements)
-3. **FakeNewsNet** (multimodal data)
-4. **Satire Datasets** (The Onion, Babylon Bee)
-
-## ��� Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src tests/
-
-# Run specific test file
-pytest tests/test_preprocessing.py
-```
-
-## ��� Model Performance
-
-| Model | Accuracy | F1-Score | Latency |
-|-------|----------|----------|---------|
-| DistilBERT | TBD | TBD | ~50ms |
-| RoBERTa | TBD | TBD | ~100ms |
-| XLNet | TBD | TBD | ~150ms |
-
-## ��� Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Write/update tests
-4. Update documentation
-5. Submit pull request
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
-
-## ��� License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
-
-## ��� Resources
-
-- [Project Documentation](docs/)
-- [API Documentation](docs/api/)
-- [Weights & Biases Dashboard](https://wandb.ai/your-team/fake-news-detection)
-- [Hugging Face Models](https://huggingface.co/your-org)
-
-## ��� Contact
-
-For questions or issues, please contact [project lead email] or open an issue on GitHub.
+- **Backend:** FastAPI, supabase-py v2, transformers, torch, shap
+- **Frontend:** React, Vite, Tailwind CSS, Framer Motion, Axios
+- **Database:** Supabase (PostgreSQL)
+- **News API:** GNews
+- **Training:** HuggingFace Trainer, Weights & Biases

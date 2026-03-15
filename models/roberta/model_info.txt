@@ -1,0 +1,6 @@
+Model: roberta-base
+Type: roberta
+Parameters: Robustly optimized BERT (125M parameters)
+Num Labels: 4
+Labels: {0: 'True', 1: 'Fake', 2: 'Satire', 3: 'Bias'}
+Status: Pre-trained (not fine-tuned)
