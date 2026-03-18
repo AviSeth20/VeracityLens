@@ -4,10 +4,7 @@
   "cls_token": "<cls>",
   "do_lower_case": false,
   "eos_token": "</s>",
-  "extra_special_tokens": [
-    "<eop>",
-    "<eod>"
-  ],
+  "extra_special_tokens": {},
   "is_local": false,
   "keep_accents": false,
   "mask_token": "<mask>",
