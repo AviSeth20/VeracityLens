@@ -77,8 +77,13 @@ class FakeNewsClassifier:
             padding=True,
         ).to(self.device)
 
+        # Only pass input_ids + attention_mask — safe for all 3 architectures
+        # DistilBERT rejects token_type_ids; XLNet has extra fields that cause issues
+        safe_keys = {"input_ids", "attention_mask"}
+        inputs = {k: v for k, v in enc.items() if k in safe_keys}
+
         with torch.no_grad():
-            outputs = self.model(**enc)
+            outputs = self.model(**inputs)
             probs = torch.softmax(outputs.logits, dim=-1)[0].cpu().numpy()
 
         pred_id = int(np.argmax(probs))
@@ -101,8 +106,10 @@ class FakeNewsClassifier:
             input_ids = enc["input_ids"]
             embeds = self.model.get_input_embeddings()(
                 input_ids).detach().requires_grad_(True)
+            attn_mask = enc.get("attention_mask")
+            # DistilBERT doesn't accept token_type_ids; XLNet needs perm_mask etc. skipped
             outputs = self.model(inputs_embeds=embeds,
-                                 attention_mask=enc.get("attention_mask"))
+                                 attention_mask=attn_mask)
             outputs.logits[0, pred_id].backward()
             importance = embeds.grad[0].norm(dim=-1).cpu().numpy()
             tokens = self.tokenizer.convert_ids_to_tokens(
