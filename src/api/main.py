@@ -89,8 +89,8 @@ async def startup_event():
             from src.models.inference import get_classifier
             get_classifier(model_key)
             print(f"✅ {model_key} loaded")
-        except Exception as e:
-            print(f"⚠️  {model_key} failed to preload: {e}")
+        except Exception:
+            print(f"ℹ️  {model_key} will load on first request")
 
     print("🚀 API server started")
 
