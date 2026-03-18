@@ -75,12 +75,14 @@ class FakeNewsClassifier:
             truncation=True,
             max_length=self.max_length,
             padding=True,
-        ).to(self.device)
+        )
 
         # Only pass input_ids + attention_mask — safe for all 3 architectures
         # DistilBERT rejects token_type_ids; XLNet has extra fields that cause issues
         safe_keys = {"input_ids", "attention_mask"}
-        inputs = {k: v for k, v in enc.items() if k in safe_keys}
+        inputs = {k: torch.tensor(v) if not isinstance(v, torch.Tensor) else v
+                  for k, v in enc.items() if k in safe_keys}
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         with torch.no_grad():
             outputs = self.model(**inputs)
@@ -141,7 +143,10 @@ class FakeNewsClassifier:
                 truncation=True,
                 max_length=self.max_length,
                 padding=False,
-            ).to(self.device)
+            )
+            # Safely move only tensor values to device (XLNet returns some lists)
+            enc = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+                   for k, v in enc.items()}
 
             input_ids = enc["input_ids"]
             self.model.zero_grad()
