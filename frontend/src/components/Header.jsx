@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Brain } from 'lucide-react'
+import { Brain, Github } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
 const NAV = [
@@ -56,6 +56,14 @@ export default function Header() {
               {item.label}
             </NavLink>
           ))}
+          <a
+            href="https://github.com/AviSeth20/VeracityLens"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-1 p-1.5 text-[#5a5a5a] hover:text-[#1a1a1a] hover:bg-[#ede9e2] rounded-lg transition-colors"
+          >
+            <Github className="w-4 h-4" />
+          </a>
         </nav>
       </div>
     </motion.header>
