@@ -1,8 +1,11 @@
 import axios from "axios";
 
+const BASE_URL =
+  import.meta.env.VITE_API_URL ?? "https://aviseth-fake-news-api.hf.space";
+
 const client = axios.create({
-  baseURL: "/api",
-  timeout: 60000, // models take time to load on first call
+  baseURL: BASE_URL,
+  timeout: 60000,
   headers: { "Content-Type": "application/json" },
 });
 
