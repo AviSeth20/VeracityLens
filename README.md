@@ -69,6 +69,21 @@ Trained on ~80k articles aggregated from:
 | India MythFacts         | Bias / Misinformation            |
 | Propaganda Dataset      | Bias                             |
 
+The cleaned and merged dataset is publicly available on Kaggle:
+
+[![Kaggle Dataset](https://img.shields.io/badge/Kaggle-Multi--Class%20Fake%20News%20Dataset-20beff?style=flat-square&logo=kaggle)](https://www.kaggle.com/datasets/aviseth20/multi-class-fake-news-dataset)
+
+```python
+import kagglehub
+from kagglehub import KaggleDatasetAdapter
+
+df = kagglehub.load_dataset(
+    KaggleDatasetAdapter.PANDAS,
+    "aviseth20/multi-class-fake-news-dataset",
+    "",
+)
+```
+
 ---
 
 ## Stack
