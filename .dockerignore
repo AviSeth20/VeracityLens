@@ -1,0 +1,17 @@
+models/
+data/
+notebooks/
+frontend/
+venv/
+.git/
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.example
+*.log
+.DS_Store
+README.md
+docker-compose.yml

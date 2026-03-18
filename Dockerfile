@@ -2,20 +2,27 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY .env.example .env.example
 
-# Expose port
-EXPOSE 8000
+# Download models from HuggingFace Hub at build time
+RUN mkdir -p models && \
+    huggingface-cli download aviseth/distilbert-fakenews --local-dir models/distilbert --exclude "checkpoints/*" && \
+    huggingface-cli download aviseth/roberta-fakenews --local-dir models/roberta --exclude "checkpoints/*" && \
+    huggingface-cli download aviseth/xlnet-fakenews --local-dir models/xlnet --exclude "checkpoints/*"
 
-# Run application
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# HuggingFace Spaces uses port 7860
+ENV PORT=7860
+EXPOSE 7860
+
+CMD uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT}

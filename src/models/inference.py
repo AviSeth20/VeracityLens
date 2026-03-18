@@ -2,6 +2,7 @@
 Model inference — lazy-loads fine-tuned models and runs predictions with explainability.
 """
 
+import os
 import torch
 import numpy as np
 from pathlib import Path
@@ -16,10 +17,11 @@ LABEL2ID = {v: k for k, v in ID2LABEL.items()}
 PROJECT_ROOT = Path(__file__).parents[2]
 MODELS_DIR = PROJECT_ROOT / "models"
 
+# Override with HF Hub repo IDs via env vars, e.g. HF_REPO_DISTILBERT=your-username/distilbert-fakenews
 MODEL_NAMES = {
-    "distilbert": "distilbert-base-uncased",
-    "roberta":    "roberta-base",
-    "xlnet":      "xlnet-base-cased",
+    "distilbert": os.getenv("HF_REPO_DISTILBERT", "distilbert-base-uncased"),
+    "roberta":    os.getenv("HF_REPO_ROBERTA",    "roberta-base"),
+    "xlnet":      os.getenv("HF_REPO_XLNET",      "xlnet-base-cased"),
 }
 
 

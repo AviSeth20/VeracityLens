@@ -42,10 +42,11 @@ venv.bak/
 *.ipynb_checkpoints/
 
 # Model files (too large for git)
-models/*.pt
-models/*.pth
-models/*.bin
-models/*.h5
+models/**/*.safetensors
+models/**/*.bin
+models/**/*.pt
+models/**/*.pth
+models/**/*.h5
 *.ckpt
 checkpoints/
 
@@ -89,6 +90,9 @@ frontend/dist/
 # Docker
 *.env.docker
 docker-compose.override.yml
+
+# HuggingFace Space clone (separate git repo)
+fake-news-api/
 
 # System files
 Thumbs.db
