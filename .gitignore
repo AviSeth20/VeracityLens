@@ -94,6 +94,9 @@ docker-compose.override.yml
 # HuggingFace Space clone (separate git repo)
 fake-news-api/
 
+# Local exports
+README.html
+
 # System files
 Thumbs.db
 .DS_Store

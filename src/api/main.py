@@ -152,6 +152,8 @@ async def predict(request: PredictionRequest, background_tasks: BackgroundTasks)
         from src.models.inference import predict as run_inference
         result = run_inference(text, model_key)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Inference error: {e}")
 
     response = PredictionResponse(
