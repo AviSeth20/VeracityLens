@@ -282,13 +282,8 @@ _classifiers: dict[str, FakeNewsClassifier] = {}
 
 
 def get_classifier(model_key: str = "distilbert") -> FakeNewsClassifier:
-    """Get or create a cached classifier instance. Evicts oldest if memory is tight."""
+    """Get or create a cached classifier instance."""
     if model_key not in _classifiers:
-        # Keep max 1 model in memory to avoid OOM on constrained environments
-        if _classifiers:
-            import gc
-            _classifiers.clear()
-            gc.collect()
         _classifiers[model_key] = FakeNewsClassifier(model_key)
     return _classifiers[model_key]
 
