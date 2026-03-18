@@ -105,11 +105,20 @@ class FakeNewsClassifier:
         """Gradient saliency — returns top-k tokens sorted by importance."""
         try:
             self.model.zero_grad()
+            # Safely extract tensors — XLNet tokenizer may return lists for some fields
             input_ids = enc["input_ids"]
+            if not isinstance(input_ids, torch.Tensor):
+                input_ids = torch.tensor(input_ids)
+            input_ids = input_ids.to(self.device)
+
+            attn_mask = enc.get("attention_mask")
+            if attn_mask is not None and not isinstance(attn_mask, torch.Tensor):
+                attn_mask = torch.tensor(attn_mask)
+            if attn_mask is not None:
+                attn_mask = attn_mask.to(self.device)
+
             embeds = self.model.get_input_embeddings()(
                 input_ids).detach().requires_grad_(True)
-            attn_mask = enc.get("attention_mask")
-            # DistilBERT doesn't accept token_type_ids; XLNet needs perm_mask etc. skipped
             outputs = self.model(inputs_embeds=embeds,
                                  attention_mask=attn_mask)
             outputs.logits[0, pred_id].backward()
