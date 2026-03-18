@@ -1,64 +1,148 @@
-# Fake News Detection
+<div align="center">
 
-A multi-class fake news detection system powered by fine-tuned transformer models. It classifies news articles into four categories — **True**, **Fake**, **Satire**, and **Bias** — with real-time explainability via gradient saliency and SHAP. Built as an NTCC project using DistilBERT, RoBERTa, and XLNet trained on a combined dataset of ~80k articles from ISOT, LIAR, BuzzFeed, PolitiFact, and satire sources.
+<img src="https://img.shields.io/badge/VeracityLens-AI%20News%20Verification-d97757?style=for-the-badge&logo=brain&logoColor=white" alt="VeracityLens" />
 
-The system includes a FastAPI backend, a React + Tailwind frontend with a live news feed powered by GNews, user feedback collection stored in Supabase for active learning, and an explainability tab showing per-word attention highlights and on-demand SHAP analysis using RoBERTa.
+# VeracityLens — Fake News Detection
+
+**Multi-class fake news detection powered by fine-tuned transformer models.**  
+Classifies news articles into True, Fake, Satire, and Bias — with token-level explainability.
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=flat-square&logo=vercel)](https://fake-news-detection-aviseth6146-8670s-projects.vercel.app)
+[![API Docs](https://img.shields.io/badge/API%20Docs-HuggingFace%20Spaces-yellow?style=flat-square&logo=huggingface)](https://huggingface.co/spaces/aviseth/fake-news-api)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue?style=flat-square&logo=python)](https://python.org)
+[![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react)](https://react.dev)
+
+</div>
+
+---
+
+## Overview
+
+VeracityLens is an end-to-end fake news detection system trained on ~80,000 articles from ISOT, LIAR, BuzzFeed, PolitiFact, and satire sources. It uses three fine-tuned transformer models to classify news content into four categories and provides token-level explainability so users can understand _why_ a prediction was made.
+
+---
+
+## Features
+
+- **Multi-class classification** — True, Fake, Satire, Bias
+- **3 transformer models** — DistilBERT, RoBERTa, XLNet (switchable at runtime)
+- **Explainability** — gradient attention highlights + deep SHAP analysis
+- **Live news feed** — real-time articles via GNews, click any to analyze
+- **Newspaper view** — news grouped by predicted label across multiple topics
+- **Feedback system** — submit corrections for active learning via Supabase
+- **Prediction stats** — live dashboard showing label distribution
 
 ---
 
 ## Models
 
-| Model      | Metrics                          |
-| ---------- | -------------------------------- |
-| DistilBERT | `models/distilbert/metrics.json` |
-| RoBERTa    | `models/roberta/metrics.json`    |
-| XLNet      | `models/xlnet/metrics.json`      |
+All models fine-tuned on the same dataset with 4-class classification.
 
-All models are fine-tuned on `data/processed/Dataset_Clean.csv` and stored locally under `models/`.
+| Model      | Accuracy | Macro F1 | Parameters | HuggingFace                                                                       |
+| ---------- | -------- | -------- | ---------- | --------------------------------------------------------------------------------- |
+| DistilBERT | 85.9%    | 0.848    | 66M        | [aviseth/distilbert-fakenews](https://huggingface.co/aviseth/distilbert-fakenews) |
+| RoBERTa    | 85.8%    | 0.845    | 125M       | [aviseth/roberta-fakenews](https://huggingface.co/aviseth/roberta-fakenews)       |
+| XLNet      | 86.2%    | 0.851    | 110M       | [aviseth/xlnet-fakenews](https://huggingface.co/aviseth/xlnet-fakenews)           |
+
+### Per-class F1 Scores
+
+| Class  | DistilBERT | RoBERTa | XLNet |
+| ------ | ---------- | ------- | ----- |
+| True   | 0.889      | 0.888   | 0.892 |
+| Fake   | 0.872      | 0.879   | 0.876 |
+| Satire | 0.998      | 0.998   | 0.997 |
+| Bias   | 0.633      | 0.615   | 0.638 |
 
 ---
 
-## Setup
+## Dataset
 
-**Prerequisites:** Python 3.9+, Node.js 18+
+Trained on ~80k articles aggregated from:
+
+| Dataset                 | Type                             |
+| ----------------------- | -------------------------------- |
+| ISOT Fake News          | True / Fake                      |
+| LIAR                    | Multi-class political statements |
+| BuzzFeed Political News | True / Fake                      |
+| PolitiFact              | True / Fake                      |
+| The Onion / NotTheOnion | Satire                           |
+| India MythFacts         | Bias / Misinformation            |
+| Propaganda Dataset      | Bias                             |
+
+---
+
+## Stack
+
+| Layer            | Technology                                  |
+| ---------------- | ------------------------------------------- |
+| Backend          | FastAPI, Transformers, PyTorch, SHAP        |
+| Frontend         | React 18, Vite, Tailwind CSS, Framer Motion |
+| Database         | Supabase (PostgreSQL)                       |
+| News API         | GNews                                       |
+| Model Hosting    | HuggingFace Hub                             |
+| Backend Hosting  | HuggingFace Spaces (Docker)                 |
+| Frontend Hosting | Vercel                                      |
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
+- Git
+
+### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-org/fake-news-detection.git
+git clone https://github.com/AviSeth20/fake-news-detection.git
 cd fake-news-detection
+```
+
+### 2. Backend setup
+
+```bash
+# Create and activate virtual environment
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Mac/Linux
 
+# Install dependencies
 pip install -r requirements.txt
 
+# Set up environment variables
 cp .env.example .env
-# Fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, GNEWS_API_KEY
+# Fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, GNEWS_API_KEY in .env
 ```
 
-Run `scripts/setup_supabase.sql` in the Supabase SQL Editor to create the schema.
+Run the Supabase schema by executing `scripts/setup_supabase.sql` in your Supabase SQL Editor.
+
+### 3. Download models
 
 ```bash
-# Backend
-python -m uvicorn src.api.main:app --reload
+python scripts/download_models.py
+```
 
-# Frontend (new terminal)
+This downloads DistilBERT, RoBERTa, and XLNet base weights to `models/`.  
+To use your own fine-tuned weights, replace the contents of each model folder.
+
+### 4. Run the backend
+
+```bash
+python -m uvicorn src.api.main:app --reload
+# API running at http://localhost:8000
+# Swagger docs at http://localhost:8000/docs
+```
+
+### 5. Run the frontend
+
+```bash
 cd frontend
 npm install
 npm run dev
+# Frontend running at http://localhost:5173
 ```
-
-Frontend: `http://localhost:5173` — API: `http://localhost:8000` — Docs: `http://localhost:8000/docs`
-
----
-
-## Usage
-
-- Paste any news article text, select a model, and click Analyze
-- The result card shows the predicted label, confidence, per-class probabilities, and an Explain tab
-- The Explain tab auto-loads gradient saliency highlights; click "Explain Deeply" for SHAP analysis (uses RoBERTa, ~15s on CPU)
-- The Live News tab shows real-time articles from GNews — click any to analyze
-- The News page (`/news`) shows a newspaper layout with articles grouped by predicted label
-- Use the feedback panel to submit corrections for active learning
 
 ---
 
@@ -70,30 +154,50 @@ fake-news-detection/
 │   ├── raw/               # Original datasets
 │   └── processed/         # Cleaned training data
 ├── models/
-│   ├── distilbert/
-│   ├── roberta/
-│   └── xlnet/
+│   ├── distilbert/        # Fine-tuned DistilBERT weights
+│   ├── roberta/           # Fine-tuned RoBERTa weights
+│   └── xlnet/             # Fine-tuned XLNet weights
 ├── notebooks/
+│   ├── Dataset_Cleaning.ipynb
+│   └── 03_model_training.ipynb
 ├── scripts/
-│   ├── setup_supabase.sql
-│   └── download_models.py
+│   ├── download_models.py
+│   └── setup_supabase.sql
 ├── src/
-│   ├── api/main.py
-│   ├── models/            # inference, train, evaluate
-│   ├── data/              # preprocessing, dataset, gnews_collector
-│   └── utils/             # supabase_client, gnews_client
-├── frontend/
-├── .env.example
-├── requirements.txt
-└── docker-compose.yml
+│   ├── api/main.py        # FastAPI application
+│   ├── models/            # inference, training, evaluation
+│   ├── data/              # preprocessing, dataset, GNews collector
+│   └── utils/             # Supabase client, GNews client
+├── frontend/              # React + Vite application
+├── Dockerfile
+└── .env.example
 ```
 
 ---
 
-## Stack
+## API Endpoints
 
-- **Backend:** FastAPI, supabase-py v2, transformers, torch, shap
-- **Frontend:** React, Vite, Tailwind CSS, Framer Motion, Axios
-- **Database:** Supabase (PostgreSQL)
-- **News API:** GNews
-- **Training:** HuggingFace Trainer, Weights & Biases
+| Method | Endpoint          | Description                                  |
+| ------ | ----------------- | -------------------------------------------- |
+| POST   | `/predict`        | Classify text as True / Fake / Satire / Bias |
+| POST   | `/explain`        | Gradient saliency + SHAP explainability      |
+| GET    | `/news`           | Live news via GNews                          |
+| GET    | `/news/newspaper` | News grouped by predicted label              |
+| POST   | `/feedback`       | Submit label corrections                     |
+| GET    | `/stats`          | Prediction statistics                        |
+| GET    | `/health`         | Health check                                 |
+| GET    | `/docs`           | Swagger UI                                   |
+
+---
+
+## Built By
+
+| Name     | GitHub                                     | Email                 |
+| -------- | ------------------------------------------ | --------------------- |
+| Avi Seth | [@AviSeth20](https://github.com/AviSeth20) | aviseth6146@gmail.com |
+
+---
+
+<div align="center">
+<sub>Built with PyTorch, HuggingFace Transformers, FastAPI, and React</sub>
+</div>
