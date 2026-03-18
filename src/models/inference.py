@@ -6,6 +6,7 @@ import os
 import torch
 import numpy as np
 from pathlib import Path
+from typing import List, Dict
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from dotenv import load_dotenv
 
@@ -105,7 +106,7 @@ class FakeNewsClassifier:
             "tokens":     tokens,
         }
 
-    def _token_importance(self, enc, pred_id: int, top_k: int = 8) -> list[dict]:
+    def _token_importance(self, enc, pred_id: int, top_k: int = 8) -> List[Dict]:
         """Gradient saliency — returns top-k tokens sorted by importance."""
         try:
             self.model.zero_grad()
@@ -144,7 +145,7 @@ class FakeNewsClassifier:
         except Exception:
             return []
 
-    def attention_weights(self, text: str) -> list[dict]:
+    def attention_weights(self, text: str) -> List[Dict]:
         """
         Gradient saliency mapped to original words in reading order.
         Merges subword tokens (BERT ## and RoBERTa Ġ) back into full words.
@@ -220,7 +221,7 @@ class FakeNewsClassifier:
             traceback.print_exc()
             return []
 
-    def shap_explain(self, text: str) -> list[dict]:
+    def shap_explain(self, text: str) -> List[Dict]:
         """
         Word-level SHAP explanation using RoBERTa for better context.
         Returns words sorted by absolute SHAP value, most influential first.
@@ -294,7 +295,7 @@ def predict(text: str, model_key: str = "distilbert") -> dict:
 
 
 def generate_explanation_text(
-    shap_tokens: list[dict],
+    shap_tokens: List[Dict],
     label: str,
     confidence: float,
     model_key: str,
