@@ -55,6 +55,17 @@ class FakeNewsClassifier:
                         json.dump(tok_cfg, f, indent=2)
                     print("[inference] Fixed xlnet tokenizer_config.json")
 
+            # Fix config.json — remove deprecated use_cache field
+            cfg_path = Path(source) / "config.json"
+            if cfg_path.exists():
+                with open(cfg_path) as f:
+                    cfg = json.load(f)
+                if "use_cache" in cfg:
+                    del cfg["use_cache"]
+                    with open(cfg_path, "w") as f:
+                        json.dump(cfg, f, indent=2)
+                    print("[inference] Fixed xlnet config.json")
+
         self._tokenizer = AutoTokenizer.from_pretrained(source)
         self._model = AutoModelForSequenceClassification.from_pretrained(
             source,

@@ -50,7 +50,6 @@
   "tie_word_embeddings": true,
   "transformers_version": "5.0.0",
   "untie_r": true,
-  "use_cache": false,
   "use_mems_eval": true,
   "use_mems_train": false,
   "vocab_size": 32000
