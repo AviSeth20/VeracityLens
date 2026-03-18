@@ -17,9 +17,9 @@ COPY .env.example .env.example
 
 # Download models from HuggingFace Hub at build time
 RUN mkdir -p models && \
-    huggingface-cli download aviseth/distilbert-fakenews --local-dir models/distilbert --exclude "checkpoints/*" && \
-    huggingface-cli download aviseth/roberta-fakenews --local-dir models/roberta --exclude "checkpoints/*" && \
-    huggingface-cli download aviseth/xlnet-fakenews --local-dir models/xlnet --exclude "checkpoints/*"
+    hf download aviseth/distilbert-fakenews --local-dir models/distilbert --exclude "checkpoints/*" && \
+    hf download aviseth/roberta-fakenews --local-dir models/roberta --exclude "checkpoints/*" && \
+    hf download aviseth/xlnet-fakenews --local-dir models/xlnet --exclude "checkpoints/*"
 
 # HuggingFace Spaces uses port 7860
 ENV PORT=7860
