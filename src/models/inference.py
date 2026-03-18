@@ -41,6 +41,20 @@ class FakeNewsClassifier:
         source = str(local_path) if (
             local_path / "config.json").exists() else MODEL_NAMES[self.model_key]
         print(f"[inference] Loading {self.model_key} from: {source}")
+
+        # Fix XLNet tokenizer_config.json — extra_special_tokens must be a dict
+        if self.model_key == "xlnet":
+            import json
+            tok_cfg_path = Path(source) / "tokenizer_config.json"
+            if tok_cfg_path.exists():
+                with open(tok_cfg_path) as f:
+                    tok_cfg = json.load(f)
+                if isinstance(tok_cfg.get("extra_special_tokens"), list):
+                    tok_cfg["extra_special_tokens"] = {}
+                    with open(tok_cfg_path, "w") as f:
+                        json.dump(tok_cfg, f, indent=2)
+                    print("[inference] Fixed xlnet tokenizer_config.json")
+
         self._tokenizer = AutoTokenizer.from_pretrained(source)
         self._model = AutoModelForSequenceClassification.from_pretrained(
             source,
