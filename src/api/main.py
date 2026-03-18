@@ -84,12 +84,10 @@ async def startup_event():
         print(f"⚠️  GNews: {e}")
 
     # Pre-load all models at startup so first requests don't time out
-    import asyncio
-    loop = asyncio.get_event_loop()
     for model_key in ["distilbert", "roberta", "xlnet"]:
         try:
             from src.models.inference import get_classifier
-            await loop.run_in_executor(None, get_classifier, model_key)
+            get_classifier(model_key)
             print(f"✅ {model_key} loaded")
         except Exception as e:
             print(f"⚠️  {model_key} failed to preload: {e}")
