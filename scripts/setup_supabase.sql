@@ -77,18 +77,24 @@ CREATE TABLE user_sessions (
     last_activity TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE predictions       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE feedback          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE news_articles     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE model_performance DISABLE ROW LEVEL SECURITY;
-ALTER TABLE user_sessions     DISABLE ROW LEVEL SECURITY;
+ALTER TABLE predictions       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_articles     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE model_performance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sessions     ENABLE ROW LEVEL SECURITY;
 
-CREATE VIEW prediction_stats AS
+CREATE POLICY "allow_all_predictions"      ON predictions      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_feedback"         ON feedback         FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_news_articles"    ON news_articles    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_model_performance" ON model_performance FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_user_sessions"    ON user_sessions    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE VIEW prediction_stats WITH (security_invoker = true) AS
 SELECT predicted_label, COUNT(*) AS total_count, AVG(confidence) AS avg_confidence
 FROM predictions
 GROUP BY predicted_label;
 
-CREATE VIEW feedback_accuracy AS
+CREATE VIEW feedback_accuracy WITH (security_invoker = true) AS
 SELECT predicted_label, actual_label, COUNT(*) AS count
 FROM feedback
 GROUP BY predicted_label, actual_label
