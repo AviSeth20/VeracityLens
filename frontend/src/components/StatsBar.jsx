@@ -33,7 +33,7 @@ export default function StatsBar({ stats }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 + i * 0.08 }}
             whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}
-            className="bg-white border border-[#ede9e2] rounded-xl px-4 py-3 flex items-center gap-3 cursor-default transition-shadow"
+            className="bg-white dark:bg-[#1c1917] border border-[#ede9e2] dark:border-[#44403c] rounded-xl px-4 py-3 flex items-center gap-3 cursor-default transition-shadow"
           >
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -42,10 +42,10 @@ export default function StatsBar({ stats }) {
               <Icon className="w-4 h-4" style={{ color: s.color }} />
             </div>
             <div>
-              <div className="text-base font-semibold text-[#1a1a1a] tabular-nums">
+              <div className="text-base font-semibold text-[#1a1a1a] dark:text-[#fafaf9] tabular-nums">
                 {fmt(count)}
               </div>
-              <div className="text-[11px] text-[#8a8a8a]">{s.label}</div>
+              <div className="text-[11px] text-[#6a6a6a] dark:text-[#a8a29e]">{s.label}</div>
             </div>
           </motion.div>
         )

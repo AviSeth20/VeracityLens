@@ -10,7 +10,7 @@ import LoadingSkeleton from './components/LoadingSkeleton'
 import ModelSelector from './components/ModelSelector'
 import StatsBar from './components/StatsBar'
 import LiveNewsFeed from './components/LiveNewsFeed'
-import { analyzeNews, getStats } from './services/api'
+import { analyzeNews, analyzeEnsemble, getStats, pingApi } from './services/api'
 
 export default function App() {
   const location = useLocation()
@@ -31,6 +31,7 @@ export default function App() {
   }, [location.state])
 
   useEffect(() => {
+    pingApi()
     getStats().then(setStats).catch(() => {})
   }, [])
 
@@ -40,7 +41,10 @@ export default function App() {
     setResult(null)
     setError(null)
     try {
-      const data = await analyzeNews(input, model)
+      // Call analyzeEnsemble() when ensemble is selected
+      const data = model === 'ensemble' 
+        ? await analyzeEnsemble(input)
+        : await analyzeNews(input, model)
       setResult({ ...data, _text: input })
       // Refresh stats after a prediction
       getStats().then(setStats).catch(() => {})
@@ -58,7 +62,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f7] flex flex-col">
+    <div className="min-h-screen bg-[#faf9f7] dark:bg-[#0c0a09] flex flex-col transition-colors duration-200">
       <Header />
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-10">
@@ -69,11 +73,11 @@ export default function App() {
           transition={{ duration: 0.5 }}
           className="text-center mb-10"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#1a1a1a] tracking-tight mb-3">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#1a1a1a] dark:text-[#fafaf9] tracking-tight mb-3">
             Detect Fake News with{' '}
             <span className="text-[#d97757]">AI Precision</span>
           </h2>
-          <p className="text-[#5a5a5a] text-base max-w-xl mx-auto leading-relaxed">
+          <p className="text-[#3a3a3a] dark:text-[#d6d3d1] text-base max-w-xl mx-auto leading-relaxed">
             Transformer models analyze news content to identify truth, misinformation,
             satire, and bias — with token-level explainability.
           </p>
@@ -116,7 +120,7 @@ export default function App() {
             <AnimatePresence mode="wait">
               {isLoading && (
                 <motion.div key="skeleton">
-                  <LoadingSkeleton />
+                  <LoadingSkeleton message={model === 'ensemble' ? 'Running 3 models...' : undefined} />
                 </motion.div>
               )}
               {!isLoading && result && (

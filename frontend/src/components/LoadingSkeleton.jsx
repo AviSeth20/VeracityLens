@@ -7,17 +7,26 @@ function SkeletonLine({ width = 'w-full', height = 'h-3' }) {
   )
 }
 
-export default function LoadingSkeleton() {
+export default function LoadingSkeleton({ message }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-2xl border border-[#ede9e2] shadow-sm overflow-hidden"
+      className="bg-white dark:bg-[#1c1917] rounded-2xl border border-[#ede9e2] dark:border-[#44403c] shadow-sm overflow-hidden"
     >
       {/* Top accent bar shimmer */}
-      <div className="h-1 w-full shimmer-bg" />
+      <div className="h-1 w-full shimmer-bg dark:shimmer-bg-dark" />
+
+      {/* Optional loading message */}
+      {message && (
+        <div className="px-6 pt-4 pb-2">
+          <p className="text-sm text-[#3a3a3a] dark:text-[#d6d3d1] font-medium animate-pulse">
+            {message}
+          </p>
+        </div>
+      )}
 
       <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4">
         {/* Left: icon + label */}
@@ -35,7 +44,7 @@ export default function LoadingSkeleton() {
         </div>
       </div>
 
-      <div className="mx-6 border-t border-[#f5f3ef]" />
+      <div className="mx-6 border-t border-[#f5f3ef] dark:border-[#44403c]" />
 
       <div className="px-6 py-4 space-y-2">
         <SkeletonLine width="w-32" height="h-3" />

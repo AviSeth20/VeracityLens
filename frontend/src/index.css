@@ -17,6 +17,12 @@
     margin: 0;
     background-color: #faf9f7;
     color: #1a1a1a;
+    transition: background-color 200ms, color 200ms;
+  }
+
+  .dark body {
+    background-color: #0c0a09;
+    color: #fafaf9;
   }
 }
 
@@ -32,9 +38,24 @@
     animation: shimmer 1.8s linear infinite;
   }
 
+  .dark .shimmer-bg {
+    background: linear-gradient(
+      90deg,
+      #292524 25%,
+      #44403c 50%,
+      #292524 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: #ddd7cc transparent;
+  }
+
+  .dark .scrollbar-thin {
+    scrollbar-color: #44403c transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -48,5 +69,9 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: #ddd7cc;
     border-radius: 2px;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #44403c;
   }
 }

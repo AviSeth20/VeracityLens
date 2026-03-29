@@ -1,4 +1,5 @@
 import axios from "axios";
+import { sessionTracker } from "../utils/sessionTracker";
 
 const BASE_URL =
   import.meta.env.VITE_API_URL ?? "https://aviseth-fake-news-api.hf.space";
@@ -8,6 +9,20 @@ const client = axios.create({
   timeout: 60000,
   headers: { "Content-Type": "application/json" },
 });
+
+client.interceptors.request.use((config) => {
+  config.headers["X-Session-ID"] = sessionTracker.getSessionId();
+  return config;
+});
+
+// Ping the API on load to wake the HF Space if it's sleeping
+export async function pingApi() {
+  try {
+    await client.get("/health", { timeout: 90000 });
+  } catch {
+    // Ignore — just waking the space up
+  }
+}
 
 /** Analyze a news article — returns real model prediction */
 export async function analyzeNews(text, model = "distilbert") {
@@ -60,5 +75,19 @@ export async function explainPrediction(
   deep = false,
 ) {
   const { data } = await client.post("/explain", { text, model, deep });
+  return data;
+}
+
+/** Analyze text using ensemble of all three models */
+export async function analyzeEnsemble(text) {
+  const { data } = await client.post("/predict/ensemble", { text });
+  return data;
+}
+
+/** Get user's analysis history */
+export async function getUserHistory(sessionId, limit = 100) {
+  const { data } = await client.get(`/history/${sessionId}`, {
+    params: { limit },
+  });
   return data;
 }
