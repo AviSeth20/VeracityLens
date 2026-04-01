@@ -94,6 +94,10 @@ docker-compose.override.yml
 # HuggingFace Space clone (separate git repo)
 fake-news-api/
 
+# Kiro IDE files (local only)
+.kiro/
+.hypothesis/
+
 # Local exports
 README.html
 
