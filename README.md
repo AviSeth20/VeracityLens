@@ -7,7 +7,7 @@
 **Multi-class fake news detection powered by fine-tuned transformer models.**  
 Classifies news articles into True, Fake, Satire, and Bias — with token-level explainability.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=flat-square&logo=vercel)](https://fake-news-detection-aviseth6146-8670s-projects.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=flat-square&logo=vercel)](https://veracitylens.vercel.app)
 [![API Docs](https://img.shields.io/badge/API%20Docs-HuggingFace%20Spaces-yellow?style=flat-square&logo=huggingface)](https://huggingface.co/spaces/aviseth/fake-news-api)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue?style=flat-square&logo=python)](https://python.org)
 [![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react)](https://react.dev)
@@ -26,9 +26,12 @@ VeracityLens is an end-to-end fake news detection system trained on ~80,000 arti
 
 - **Multi-class classification** — True, Fake, Satire, Bias
 - **3 transformer models** — DistilBERT, RoBERTa, XLNet (switchable at runtime)
+- **Ensemble model** — combines all 3 models with hard, soft, and weighted voting
 - **Explainability** — gradient attention highlights + deep SHAP analysis
 - **Live news feed** — real-time articles via GNews, click any to analyze
 - **Newspaper view** — news grouped by predicted label across multiple topics
+- **Analysis history** — session-based prediction history stored in Supabase
+- **Dark mode** — full light/dark theme with system preference detection
 - **Feedback system** — submit corrections for active learning via Supabase
 - **Prediction stats** — live dashboard showing label distribution
 
@@ -145,7 +148,9 @@ To use your own fine-tuned weights, replace the contents of each model folder.
 ### 4. Run the backend
 
 ```bash
-python -m uvicorn src.api.main:app --reload
+# Run from the fake-news-api directory
+cd fake-news-api
+uvicorn src.api.main:app --reload --port 8000
 # API running at http://localhost:8000
 # Swagger docs at http://localhost:8000/docs
 ```
@@ -175,33 +180,47 @@ fake-news-detection/
 ├── notebooks/
 │   ├── Dataset_Cleaning.ipynb
 │   └── 03_model_training.ipynb
-├── scripts/
-│   ├── download_models.py
-│   └── setup_supabase.sql
-├── src/
-│   ├── api/main.py        # FastAPI application
-│   ├── models/            # inference, training, evaluation
-│   ├── data/              # preprocessing, dataset, GNews collector
-│   └── utils/             # Supabase client, GNews client
+├── fake-news-api/         # Backend (FastAPI)
+│   ├── src/
+│   │   ├── api/main.py    # FastAPI application (start server from here)
+│   │   ├── models/        # inference, ensemble, training, evaluation
+│   │   ├── data/          # preprocessing, dataset, GNews collector
+│   │   └── utils/         # Supabase client, GNews client
+│   ├── scripts/
+│   │   ├── download_models.py
+│   │   └── setup_supabase.sql
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── frontend/              # React + Vite application
-├── Dockerfile
+│   ├── src/
+│   │   ├── components/    # UI components
+│   │   ├── contexts/      # ThemeContext
+│   │   ├── pages/         # HistoryPage, NewsPage
+│   │   ├── services/      # API client
+│   │   └── utils/         # sessionTracker
+│   └── package.json
 └── .env.example
 ```
+
+> **Note:** The `src/` folder at the workspace root is an older copy and is not used. Always run the backend from `fake-news-api/`.
 
 ---
 
 ## API Endpoints
 
-| Method | Endpoint          | Description                                  |
-| ------ | ----------------- | -------------------------------------------- |
-| POST   | `/predict`        | Classify text as True / Fake / Satire / Bias |
-| POST   | `/explain`        | Gradient saliency + SHAP explainability      |
-| GET    | `/news`           | Live news via GNews                          |
-| GET    | `/news/newspaper` | News grouped by predicted label              |
-| POST   | `/feedback`       | Submit label corrections                     |
-| GET    | `/stats`          | Prediction statistics                        |
-| GET    | `/health`         | Health check                                 |
-| GET    | `/docs`           | Swagger UI                                   |
+| Method | Endpoint             | Description                                  |
+| ------ | -------------------- | -------------------------------------------- |
+| POST   | `/predict`           | Classify text as True / Fake / Satire / Bias |
+| POST   | `/predict/ensemble`  | Ensemble prediction (all 3 models + voting)  |
+| POST   | `/explain`           | Gradient saliency + SHAP explainability      |
+| GET    | `/history/{session}` | User prediction history                      |
+| GET    | `/news`              | Live news via GNews                          |
+| GET    | `/news/newspaper`    | News grouped by predicted label              |
+| POST   | `/feedback`          | Submit label corrections                     |
+| GET    | `/stats`             | Prediction statistics                        |
+| GET    | `/storage`           | Database storage usage                       |
+| GET    | `/health`            | Health check                                 |
+| GET    | `/docs`              | Swagger UI                                   |
 
 ---
 
