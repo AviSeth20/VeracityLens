@@ -91,7 +91,7 @@ frontend/dist/
 *.env.docker
 docker-compose.override.yml
 
-# HuggingFace Space clone (separate git repo)
+# HuggingFace Space clone (separate git repo — not tracked)
 fake-news-api/
 
 # Kiro IDE files (local only)

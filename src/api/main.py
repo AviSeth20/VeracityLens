@@ -1,15 +1,27 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional, List, Dict
 import os
 import uuid
+import asyncio
+import logging
+import time
+from collections import defaultdict
 from dotenv import load_dotenv
 
 from src.utils.supabase_client import get_supabase_client
 from src.utils.gnews_client import get_gnews_client
 
 load_dotenv()
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
+# Rate limiting: Track requests per IP
+request_tracker = defaultdict(list)
+RATE_LIMIT_REQUESTS = 100  # Max requests per window
+RATE_LIMIT_WINDOW = 60  # Window in seconds
 
 app = FastAPI(
     title="Fake News Detection API",
@@ -33,6 +45,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """
+    Rate limiting middleware to prevent abuse.
+    Allows RATE_LIMIT_REQUESTS per RATE_LIMIT_WINDOW seconds per IP.
+    """
+    client_ip = request.client.host
+    current_time = time.time()
+
+    # Clean old requests outside the window
+    request_tracker[client_ip] = [
+        req_time for req_time in request_tracker[client_ip]
+        if current_time - req_time < RATE_LIMIT_WINDOW
+    ]
+
+    # Check rate limit
+    if len(request_tracker[client_ip]) >= RATE_LIMIT_REQUESTS:
+        logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Maximum {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW} seconds."
+        )
+
+    # Track this request
+    request_tracker[client_ip].append(current_time)
+
+    response = await call_next(request)
+    return response
+
 
 VALID_MODELS = {"distilbert", "roberta", "xlnet"}
 
@@ -68,6 +111,48 @@ class ExplainRequest(BaseModel):
     text: str
     model: Optional[str] = "distilbert"
     deep: Optional[bool] = False
+
+
+# Ensemble API Models
+class EnsemblePredictionRequest(BaseModel):
+    text: str
+    session_id: Optional[str] = None
+
+    @validator('text')
+    def validate_text(cls, v):
+        if len(v.strip()) < 10:
+            raise ValueError("Text too short to classify")
+        return v
+
+
+class VotingResult(BaseModel):
+    label: str
+    confidence: float
+    scores: Dict[str, float]
+
+
+class VotingStrategies(BaseModel):
+    hard_voting: VotingResult
+    soft_voting: VotingResult
+    weighted_voting: VotingResult
+
+
+class ModelPredictionResponse(BaseModel):
+    model_name: str
+    label: str
+    confidence: float
+    scores: Dict[str, float]
+    tokens: List[ExplanationData]
+
+
+class EnsemblePredictionResponse(BaseModel):
+    article_id: str
+    primary_prediction: VotingResult  # hard voting result
+    voting_strategies: VotingStrategies
+    individual_models: List[ModelPredictionResponse]
+    merged_explanation: List[ExplanationData]
+    execution_time_ms: float
+    warnings: Optional[List[str]] = None
 
 
 @app.on_event("startup")
@@ -122,8 +207,16 @@ async def health_check():
 
 
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(request: PredictionRequest, background_tasks: BackgroundTasks):
-    """Classify news as True / Fake / Satire / Bias."""
+async def predict(
+    request: PredictionRequest,
+    background_tasks: BackgroundTasks,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
+):
+    """
+    Classify news as True / Fake / Satire / Bias.
+
+    Requirements: 4.4, 4.6, 2.7
+    """
     if not request.text and not request.url:
         raise HTTPException(status_code=400, detail="Provide text or url")
 
@@ -164,21 +257,272 @@ async def predict(request: PredictionRequest, background_tasks: BackgroundTasks)
     )
 
     def _store():
+        """
+        Store prediction in both predictions and user_analysis_history tables.
+        Requirements: 4.4, 4.6, 2.7
+        """
         try:
             supabase = get_supabase_client()
-            supabase.store_prediction(
-                article_id=article_id,
-                text=text,
-                predicted_label=result["label"],
-                confidence=result["confidence"],
-                model_name=model_key,
-                explanation=result.get("tokens", []),
-            )
+
+            # Store in predictions table (Requirement 2.7)
+            try:
+                supabase.store_prediction(
+                    article_id=article_id,
+                    text=text,
+                    predicted_label=result["label"],
+                    confidence=result["confidence"],
+                    model_name=model_key,
+                    explanation=result.get("tokens", []),
+                )
+                logger.info(
+                    f"Stored prediction {article_id} in predictions table")
+            except Exception as e:
+                logger.error(
+                    f"Failed to store prediction in predictions table: {e}")
+
+            # Store in user_analysis_history if session_id is provided (Requirement 4.4, 4.6)
+            if x_session_id:
+                try:
+                    supabase.store_user_history(
+                        session_id=x_session_id,
+                        article_id=article_id,
+                        text=text,
+                        predicted_label=result["label"],
+                        confidence=result["confidence"],
+                        model_name=model_key
+                    )
+                    logger.info(
+                        f"Stored prediction {article_id} in user_analysis_history for session {x_session_id}")
+                except Exception as e:
+                    # Handle missing session_id gracefully (Requirement 4.4)
+                    logger.error(
+                        f"Failed to store prediction in user_analysis_history: {e}")
+            else:
+                logger.debug(
+                    f"No session_id provided for prediction {article_id}, skipping history storage")
+
         except Exception as e:
-            print(f"[bg] store_prediction failed: {e}")
+            logger.error(
+                f"Database storage failed for prediction {article_id}: {e}")
 
     background_tasks.add_task(_store)
     return response
+
+
+@app.post("/predict/ensemble", response_model=EnsemblePredictionResponse)
+async def predict_ensemble(
+    request: EnsemblePredictionRequest,
+    background_tasks: BackgroundTasks,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
+):
+    """
+    Run ensemble prediction using all three models (DistilBERT, RoBERTa, XLNet).
+    Combines predictions using hard voting, soft voting, and weighted voting strategies.
+
+    Requirements: 2.1, 2.2, 2.5, 2.8
+    """
+    article_id = str(uuid.uuid4())
+    session_id = x_session_id or request.session_id
+
+    try:
+        from src.models.ensemble import get_ensemble_classifier
+
+        # Get ensemble classifier instance
+        ensemble = get_ensemble_classifier()
+
+        # Run ensemble prediction with 15s timeout (Requirement 2.8)
+        result = await asyncio.wait_for(
+            ensemble.predict_ensemble(request.text),
+            timeout=15.0
+        )
+
+        # Build response with all voting strategies
+        primary_prediction = VotingResult(
+            label=result.hard_voting_label,
+            confidence=result.hard_voting_confidence,
+            scores={result.hard_voting_label: result.hard_voting_confidence}
+        )
+
+        voting_strategies = VotingStrategies(
+            hard_voting=VotingResult(
+                label=result.hard_voting_label,
+                confidence=result.hard_voting_confidence,
+                scores={result.hard_voting_label: result.hard_voting_confidence}
+            ),
+            soft_voting=VotingResult(
+                label=result.soft_voting_label,
+                confidence=result.soft_voting_confidence,
+                scores=result.soft_voting_scores
+            ),
+            weighted_voting=VotingResult(
+                label=result.weighted_voting_label,
+                confidence=result.weighted_voting_confidence,
+                scores=result.weighted_voting_scores
+            )
+        )
+
+        # Convert individual model predictions
+        individual_models = [
+            ModelPredictionResponse(
+                model_name=pred.model_name,
+                label=pred.label,
+                confidence=pred.confidence,
+                scores=pred.scores,
+                tokens=[ExplanationData(**t) for t in pred.tokens]
+            )
+            for pred in result.individual_predictions
+        ]
+
+        # Convert merged explanation
+        merged_explanation = [
+            ExplanationData(**token) for token in result.merged_explanation
+        ]
+
+        response = EnsemblePredictionResponse(
+            article_id=article_id,
+            primary_prediction=primary_prediction,
+            voting_strategies=voting_strategies,
+            individual_models=individual_models,
+            merged_explanation=merged_explanation,
+            execution_time_ms=result.execution_time_ms,
+            warnings=result.warnings
+        )
+
+        # Background task: store ensemble prediction to database
+        def store_ensemble_prediction():
+            """
+            Store prediction in both predictions and user_analysis_history tables.
+            Handles database failures gracefully - logs errors but doesn't crash.
+            Requirements: 2.3, 2.4, 2.6, 2.7, 14.3
+            """
+            try:
+                supabase = get_supabase_client()
+
+                # Store in predictions table with model_name="ensemble" (Requirement 2.7)
+                try:
+                    supabase.store_prediction(
+                        article_id=article_id,
+                        text=request.text,
+                        predicted_label=result.hard_voting_label,
+                        confidence=result.hard_voting_confidence,
+                        model_name="ensemble",
+                        explanation=result.merged_explanation,
+                    )
+                    logger.info(
+                        f"Stored ensemble prediction {article_id} in predictions table")
+                except Exception as e:
+                    # Log but continue - don't let predictions table failure stop history storage
+                    logger.error(
+                        f"Failed to store prediction in predictions table: {e}")
+
+                # Store in user_analysis_history if session_id is provided (Requirement 2.4)
+                if session_id:
+                    try:
+                        supabase.store_user_history(
+                            session_id=session_id,
+                            article_id=article_id,
+                            text=request.text,
+                            predicted_label=result.hard_voting_label,
+                            confidence=result.hard_voting_confidence,
+                            model_name="ensemble"
+                        )
+                        logger.info(
+                            f"Stored ensemble prediction {article_id} in user_analysis_history for session {session_id}")
+                    except Exception as e:
+                        # Log but don't crash - history storage is non-critical (Requirement 14.3)
+                        logger.error(
+                            f"Failed to store prediction in user_analysis_history: {e}")
+                else:
+                    logger.debug(
+                        f"No session_id provided for prediction {article_id}, skipping history storage")
+
+            except Exception as e:
+                # Catch-all for any database connection failures (Requirement 14.3)
+                logger.error(
+                    f"Database storage failed for prediction {article_id}: {e}")
+
+        background_tasks.add_task(store_ensemble_prediction)
+        return response
+
+    except asyncio.TimeoutError:
+        # Requirement 2.8: Return HTTP 504 after 15s timeout
+        raise HTTPException(
+            status_code=504,
+            detail="Ensemble prediction timed out after 15 seconds"
+        )
+    except ValueError as e:
+        # Handle validation errors (e.g., text too short)
+        raise HTTPException(status_code=422, detail=str(e))
+    except RuntimeError as e:
+        # Handle case where all models fail
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ensemble prediction error: {str(e)}"
+        )
+
+
+@app.get("/history/{session_id}")
+async def get_user_history(
+    session_id: str,
+    limit: int = Query(100, ge=1, le=100)
+):
+    """
+    Retrieve user's analysis history by session ID.
+
+    Args:
+        session_id: UUID v4 session identifier
+        limit: Maximum records to return (1-100, default 100)
+
+    Returns:
+        List of prediction records with metadata
+
+    Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7
+    """
+    # Validate UUID format (Requirement 6.6)
+    try:
+        uuid.UUID(session_id, version=4)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format"
+        )
+
+    try:
+        # Add 2s timeout (Requirement 6.7)
+        supabase = get_supabase_client()
+        history = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(
+                None,
+                supabase.get_user_history,
+                session_id,
+                limit
+            ),
+            timeout=2.0
+        )
+
+        # Return empty array with HTTP 200 for sessions with no history (Requirement 6.5)
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "count": len(history),
+            "history": history
+        }
+    except asyncio.TimeoutError:
+        # Requirement 6.7: Return HTTP 504 after 2s timeout
+        raise HTTPException(
+            status_code=504,
+            detail="History retrieval timed out after 2 seconds"
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch history for session {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load history"
+        )
 
 
 @app.post("/feedback")
@@ -341,6 +685,23 @@ async def get_statistics():
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error fetching stats: {e}")
+
+
+@app.get("/storage")
+async def get_storage_usage():
+    """
+    Get database storage usage metrics and warnings.
+
+    Returns storage usage information and warns when approaching 90% of 500MB limit.
+    """
+    try:
+        supabase = get_supabase_client()
+        usage = supabase.check_storage_usage()
+        return {"status": "success", "storage": usage}
+    except Exception as e:
+        logger.error(f"Error fetching storage usage: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching storage usage: {e}")
 
 
 @app.get("/models")

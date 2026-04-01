@@ -1,27 +1,20 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
-COPY scripts/ ./scripts/
-COPY .env.example .env.example
 
-# Download models from HuggingFace Hub at build time
-RUN mkdir -p models && \
-    hf download aviseth/distilbert-fakenews --local-dir models/distilbert --exclude "checkpoints/*" && \
-    hf download aviseth/roberta-fakenews --local-dir models/roberta --exclude "checkpoints/*" && \
-    hf download aviseth/xlnet-fakenews --local-dir models/xlnet --exclude "checkpoints/*"
+# Cache bust: 2026-03-29-v7 (fix __init__ imports + pin tokenizers 0.19)
 
-# HuggingFace Spaces uses port 7860
 ENV PORT=7860
 EXPOSE 7860
 

@@ -3,6 +3,7 @@ Model inference — lazy-loads fine-tuned models and runs predictions with expla
 """
 
 import os
+import json
 import torch
 import numpy as np
 from pathlib import Path
@@ -15,15 +16,35 @@ load_dotenv()
 ID2LABEL = {0: "True", 1: "Fake", 2: "Satire", 3: "Bias"}
 LABEL2ID = {v: k for k, v in ID2LABEL.items()}
 
-PROJECT_ROOT = Path(__file__).parents[2]
+_here = Path(__file__).resolve()
+PROJECT_ROOT = next(
+    (p for p in _here.parents if (p / "models" / "distilbert" / "config.json").exists()),
+    _here.parents[2]
+)
 MODELS_DIR = PROJECT_ROOT / "models"
 
-# Override with HF Hub repo IDs via env vars, e.g. HF_REPO_DISTILBERT=your-username/distilbert-fakenews
 MODEL_NAMES = {
-    "distilbert": os.getenv("HF_REPO_DISTILBERT", "distilbert-base-uncased"),
-    "roberta":    os.getenv("HF_REPO_ROBERTA",    "roberta-base"),
-    "xlnet":      os.getenv("HF_REPO_XLNET",      "xlnet-base-cased"),
+    "distilbert": os.getenv("HF_REPO_DISTILBERT", "aviseth/distilbert-fakenews"),
+    "roberta":    os.getenv("HF_REPO_ROBERTA",    "aviseth/roberta-fakenews"),
+    "xlnet":      os.getenv("HF_REPO_XLNET",      "aviseth/xlnet-fakenews"),
 }
+
+
+def _patch_xlnet_configs(source: str):
+    """Fix known XLNet config issues that cause warnings or errors on load."""
+    tok_cfg_path = Path(source) / "tokenizer_config.json"
+    if tok_cfg_path.exists():
+        tok_cfg = json.loads(tok_cfg_path.read_text())
+        if isinstance(tok_cfg.get("extra_special_tokens"), list):
+            tok_cfg["extra_special_tokens"] = {}
+            tok_cfg_path.write_text(json.dumps(tok_cfg, indent=2))
+
+    cfg_path = Path(source) / "config.json"
+    if cfg_path.exists():
+        cfg = json.loads(cfg_path.read_text())
+        if "use_cache" in cfg:
+            del cfg["use_cache"]
+            cfg_path.write_text(json.dumps(cfg, indent=2))
 
 
 class FakeNewsClassifier:
@@ -42,31 +63,13 @@ class FakeNewsClassifier:
             local_path / "config.json").exists() else MODEL_NAMES[self.model_key]
         print(f"[inference] Loading {self.model_key} from: {source}")
 
-        # Fix XLNet tokenizer_config.json — extra_special_tokens must be a dict
         if self.model_key == "xlnet":
-            import json
-            tok_cfg_path = Path(source) / "tokenizer_config.json"
-            if tok_cfg_path.exists():
-                with open(tok_cfg_path) as f:
-                    tok_cfg = json.load(f)
-                if isinstance(tok_cfg.get("extra_special_tokens"), list):
-                    tok_cfg["extra_special_tokens"] = {}
-                    with open(tok_cfg_path, "w") as f:
-                        json.dump(tok_cfg, f, indent=2)
-                    print("[inference] Fixed xlnet tokenizer_config.json")
+            _patch_xlnet_configs(source)
 
-            # Fix config.json — remove deprecated use_cache field
-            cfg_path = Path(source) / "config.json"
-            if cfg_path.exists():
-                with open(cfg_path) as f:
-                    cfg = json.load(f)
-                if "use_cache" in cfg:
-                    del cfg["use_cache"]
-                    with open(cfg_path, "w") as f:
-                        json.dump(cfg, f, indent=2)
-                    print("[inference] Fixed xlnet config.json")
-
-        self._tokenizer = AutoTokenizer.from_pretrained(source)
+        # RoBERTa: use slow tokenizer to avoid tokenizer.json format incompatibilities
+        use_fast = self.model_key != "roberta"
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            source, use_fast=use_fast)
         self._model = AutoModelForSequenceClassification.from_pretrained(
             source,
             num_labels=4,
@@ -91,10 +94,6 @@ class FakeNewsClassifier:
         return self._tokenizer
 
     def predict(self, text: str) -> dict:
-        """
-        Run inference on a single text.
-        Returns label, confidence (0-1), per-class scores, and top token importance scores.
-        """
         enc = self.tokenizer(
             text,
             return_tensors="pt",
@@ -103,10 +102,8 @@ class FakeNewsClassifier:
             padding=True,
         )
 
-        # Only pass input_ids + attention_mask — safe for DistilBERT, RoBERTa, XLNet
-        safe_keys = {"input_ids", "attention_mask"}
         inputs = {}
-        for k in safe_keys:
+        for k in {"input_ids", "attention_mask"}:
             if k not in enc:
                 continue
             v = enc[k]
@@ -135,7 +132,6 @@ class FakeNewsClassifier:
         """Gradient saliency — returns top-k tokens sorted by importance."""
         try:
             self.model.zero_grad()
-            # Safely extract tensors — XLNet tokenizer may return lists for some fields
             input_ids = enc["input_ids"]
             if not isinstance(input_ids, torch.Tensor):
                 input_ids = torch.tensor(input_ids)
@@ -153,10 +149,11 @@ class FakeNewsClassifier:
                                  attention_mask=attn_mask)
             outputs.logits[0, pred_id].backward()
             importance = embeds.grad[0].norm(dim=-1).cpu().numpy()
+
             tokens = self.tokenizer.convert_ids_to_tokens(
                 input_ids[0].cpu().tolist())
             special = {"[CLS]", "[SEP]", "[PAD]", "<s>",
-                       "</s>", "<pad>", "<cls>", "<sep>", "▁", "Ġ"}
+                "</s>", "<pad>", "<cls>", "<sep>", "▁", "Ġ"}
             pairs = [
                 (t.replace("##", "").replace("▁", "").replace("Ġ", ""), float(s))
                 for t, s in zip(tokens, importance)
@@ -171,21 +168,14 @@ class FakeNewsClassifier:
             return []
 
     def attention_weights(self, text: str) -> List[Dict]:
-        """
-        Gradient saliency mapped to original words in reading order.
-        Merges subword tokens (BERT ## and RoBERTa Ġ) back into full words.
-        """
+        """Gradient saliency mapped to original words in reading order."""
         try:
             enc = self.tokenizer(
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=self.max_length,
-                padding=False,
+                text, return_tensors="pt", truncation=True,
+                max_length=self.max_length, padding=False,
             )
-            # Safely move only tensor values to device (XLNet returns some lists)
-            enc = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
-                   for k, v in enc.items()}
+            enc = {k: v.to(self.device) if isinstance(
+                v, torch.Tensor) else v for k, v in enc.items()}
 
             input_ids = enc["input_ids"]
             self.model.zero_grad()
@@ -200,36 +190,29 @@ class FakeNewsClassifier:
             tokens = self.tokenizer.convert_ids_to_tokens(
                 input_ids[0].cpu().tolist())
             SPECIAL = {"[CLS]", "[SEP]", "[PAD]", "<s>",
-                       "</s>", "<pad>", "<cls>", "<sep>", "<unk>"}
+                "</s>", "<pad>", "<cls>", "<sep>", "<unk>"}
 
-            words = []
-            current_word = ""
-            current_score = 0.0
+            words, current_word, current_score = [], "", 0.0
             for tok, score in zip(tokens, importance):
                 if tok in SPECIAL:
                     if current_word:
                         words.append((current_word, current_score))
-                        current_word = ""
-                        current_score = 0.0
+                        current_word, current_score = "", 0.0
                     continue
-
                 is_continuation = tok.startswith("##")
                 is_new_word = tok.startswith("Ġ") or tok.startswith("▁")
                 clean = tok.replace("##", "").replace("Ġ", "").replace("▁", "")
-
                 if is_continuation:
                     current_word += clean
                     current_score = max(current_score, float(score))
                 elif is_new_word:
                     if current_word:
                         words.append((current_word, current_score))
-                    current_word = clean
-                    current_score = float(score)
+                    current_word, current_score = clean, float(score)
                 else:
                     if current_word:
                         words.append((current_word, current_score))
-                    current_word = clean
-                    current_score = float(score)
+                    current_word, current_score = clean, float(score)
 
             if current_word:
                 words.append((current_word, current_score))
@@ -242,15 +225,10 @@ class FakeNewsClassifier:
 
         except Exception as e:
             print(f"[attention_weights] failed: {e}")
-            import traceback
-            traceback.print_exc()
             return []
 
     def shap_explain(self, text: str) -> List[Dict]:
-        """
-        Word-level SHAP explanation using RoBERTa for better context.
-        Returns words sorted by absolute SHAP value, most influential first.
-        """
+        """Word-level SHAP explanation using RoBERTa."""
         try:
             import shap
 
@@ -281,26 +259,17 @@ class FakeNewsClassifier:
 
             words = shap_values.data[0]
             values = shap_values.values[0, :, pred_id]
-
             max_abs = float(np.max(np.abs(values))) if len(values) else 1.0
             if max_abs == 0:
                 max_abs = 1.0
 
-            result = []
-            for word, val in zip(words, values):
-                w = word.strip()
-                if not w:
-                    continue
-                result.append(
-                    {"word": w, "shap_value": round(float(val) / max_abs, 4)})
-
-            # Keep original sentence order so inline text rendering makes sense
-            return result
+            return [
+                {"word": w.strip(), "shap_value": round(float(v) / max_abs, 4)}
+                for w, v in zip(words, values) if w.strip()
+            ]
 
         except Exception as e:
             print(f"[shap_explain] failed: {e}")
-            import traceback
-            traceback.print_exc()
             return []
 
 
@@ -308,89 +277,55 @@ _classifiers: dict[str, FakeNewsClassifier] = {}
 
 
 def get_classifier(model_key: str = "distilbert") -> FakeNewsClassifier:
-    """Get or create a cached classifier instance."""
     if model_key not in _classifiers:
         _classifiers[model_key] = FakeNewsClassifier(model_key)
     return _classifiers[model_key]
 
 
 def predict(text: str, model_key: str = "distilbert") -> dict:
-    """Convenience wrapper for single prediction."""
     return get_classifier(model_key).predict(text)
 
 
-def generate_explanation_text(
-    shap_tokens: List[Dict],
-    label: str,
-    confidence: float,
-    model_key: str,
-) -> str:
-    """
-    Build a natural-language paragraph explaining the prediction from SHAP data.
-    No LLM required — derived entirely from token scores and prediction metadata.
-    """
+def generate_explanation_text(shap_tokens: List[Dict], label: str, confidence: float, model_key: str) -> str:
     if not shap_tokens:
         return (
             f"The {model_key} model classified this article as {label} "
-            f"with {round(confidence * 100)}% confidence, but no word-level "
-            f"explanation data was available for this prediction."
+            f"with {round(confidence * 100)}% confidence, but no word-level explanation was available."
         )
 
-    positive = sorted(
-        [t for t in shap_tokens if t["shap_value"] > 0.05],
-        key=lambda x: x["shap_value"], reverse=True
-    )[:5]
-    negative = sorted(
-        [t for t in shap_tokens if t["shap_value"] < -0.05],
-        key=lambda x: x["shap_value"]
-    )[:3]
+    positive = sorted([t for t in shap_tokens if t["shap_value"]
+                      > 0.05], key=lambda x: x["shap_value"], reverse=True)[:5]
+    negative = sorted([t for t in shap_tokens if t["shap_value"]
+                      < -0.05], key=lambda x: x["shap_value"])[:3]
 
     conf_pct = round(confidence * 100)
     model_display = {"distilbert": "DistilBERT", "roberta": "RoBERTa",
-                     "xlnet": "XLNet"}.get(model_key, model_key)
-
+        "xlnet": "XLNet"}.get(model_key, model_key)
     conf_phrase = (
         "with very high confidence" if conf_pct >= 90 else
         "with high confidence" if conf_pct >= 75 else
         "with moderate confidence" if conf_pct >= 55 else
         "with low confidence"
     )
-
     label_descriptions = {
-        "True":   "factual and credible reporting",
-        "Fake":   "fabricated or misleading content",
+        "True": "factual and credible reporting",
+        "Fake": "fabricated or misleading content",
         "Satire": "satirical or parody content",
-        "Bias":   "politically or ideologically biased reporting",
+        "Bias": "politically or ideologically biased reporting",
     }
-    label_desc = label_descriptions.get(label, label)
 
     parts = [
-        f"{model_display} classified this article as {label} ({label_desc}) "
-        f"{conf_phrase} ({conf_pct}%)."
-    ]
+        f"{model_display} classified this article as {label} ({label_descriptions.get(label, label)}) {conf_phrase} ({conf_pct}%)."]
 
     if positive:
-        word_list = ", ".join(f'"{t["word"]}"' for t in positive)
-        parts.append(
-            f"The words most strongly associated with this classification were {word_list}, "
-            f"which the model weighted heavily toward a {label} prediction."
-        )
+        parts.append(f"The words most strongly associated with this classification were {', '.join(f'{chr(34)}{t[\"word\"]}{chr(34)}' for t in positive)}, which the model weighted heavily toward a {label} prediction.")
 
     if negative:
-        word_list = ", ".join(f'"{t["word"]}"' for t in negative)
-        parts.append(
-            f"On the other hand, terms like {word_list} pulled against this classification, "
-            f"suggesting some linguistic signals that are inconsistent with {label} content."
-        )
-    elif not negative:
-        parts.append(
-            f"The model found little linguistic evidence contradicting this classification."
-        )
+        parts.append(f"On the other hand, terms like {', '.join(f'{chr(34)}{t[\"word\"]}{chr(34)}' for t in negative)} pulled against this classification.")
+    else:
+        parts.append("The model found little linguistic evidence contradicting this classification.")
 
     if conf_pct < 65:
-        parts.append(
-            "The relatively lower confidence suggests the article contains mixed signals "
-            "and the prediction should be interpreted with caution."
-        )
+        parts.append("The relatively lower confidence suggests the article contains mixed signals and the prediction should be interpreted with caution.")
 
     return " ".join(parts)
