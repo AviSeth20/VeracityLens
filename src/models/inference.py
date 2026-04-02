@@ -153,7 +153,7 @@ class FakeNewsClassifier:
             tokens = self.tokenizer.convert_ids_to_tokens(
                 input_ids[0].cpu().tolist())
             special = {"[CLS]", "[SEP]", "[PAD]", "<s>",
-                "</s>", "<pad>", "<cls>", "<sep>", "▁", "Ġ"}
+                       "</s>", "<pad>", "<cls>", "<sep>", "▁", "Ġ"}
             pairs = [
                 (t.replace("##", "").replace("▁", "").replace("Ġ", ""), float(s))
                 for t, s in zip(tokens, importance)
@@ -190,7 +190,7 @@ class FakeNewsClassifier:
             tokens = self.tokenizer.convert_ids_to_tokens(
                 input_ids[0].cpu().tolist())
             SPECIAL = {"[CLS]", "[SEP]", "[PAD]", "<s>",
-                "</s>", "<pad>", "<cls>", "<sep>", "<unk>"}
+                       "</s>", "<pad>", "<cls>", "<sep>", "<unk>"}
 
             words, current_word, current_score = [], "", 0.0
             for tok, score in zip(tokens, importance):
@@ -300,7 +300,7 @@ def generate_explanation_text(shap_tokens: List[Dict], label: str, confidence: f
 
     conf_pct = round(confidence * 100)
     model_display = {"distilbert": "DistilBERT", "roberta": "RoBERTa",
-        "xlnet": "XLNet"}.get(model_key, model_key)
+                     "xlnet": "XLNet"}.get(model_key, model_key)
     conf_phrase = (
         "with very high confidence" if conf_pct >= 90 else
         "with high confidence" if conf_pct >= 75 else
@@ -318,14 +318,20 @@ def generate_explanation_text(shap_tokens: List[Dict], label: str, confidence: f
         f"{model_display} classified this article as {label} ({label_descriptions.get(label, label)}) {conf_phrase} ({conf_pct}%)."]
 
     if positive:
-        parts.append(f"The words most strongly associated with this classification were {', '.join(f'{chr(34)}{t[\"word\"]}{chr(34)}' for t in positive)}, which the model weighted heavily toward a {label} prediction.")
+        pos_words = ', '.join(f'"{t["word"]}"' for t in positive)
+        parts.append(
+            f"The words most strongly associated with this classification were {pos_words}, which the model weighted heavily toward a {label} prediction.")
 
     if negative:
-        parts.append(f"On the other hand, terms like {', '.join(f'{chr(34)}{t[\"word\"]}{chr(34)}' for t in negative)} pulled against this classification.")
+        neg_words = ', '.join(f'"{t["word"]}"' for t in negative)
+        parts.append(
+            f"On the other hand, terms like {neg_words} pulled against this classification.")
     else:
-        parts.append("The model found little linguistic evidence contradicting this classification.")
+        parts.append(
+            "The model found little linguistic evidence contradicting this classification.")
 
     if conf_pct < 65:
-        parts.append("The relatively lower confidence suggests the article contains mixed signals and the prediction should be interpreted with caution.")
+        parts.append(
+            "The relatively lower confidence suggests the article contains mixed signals and the prediction should be interpreted with caution.")
 
     return " ".join(parts)
