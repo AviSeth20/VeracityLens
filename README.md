@@ -226,9 +226,11 @@ fake-news-detection/
 
 ## Built By
 
-| Name     | GitHub                                     | Email                 |
-| -------- | ------------------------------------------ | --------------------- |
-| Avi Seth | [@AviSeth20](https://github.com/AviSeth20) | aviseth6146@gmail.com |
+| Name         | GitHub                                           | Email                   |
+| ------------ | ------------------------------------------------ | ----------------------- |
+| Avi Seth     | [@AviSeth20](https://github.com/AviSeth20)       | aviseth6146@gmail.com   |
+| Shweta Bisht | [@shweta-bisht](https://github.com/shweta-bisht) | sbshweta1311@gmail.com  |
+| Aliza Khan   | [@alizakhann2](https://github.com/Alizakhann2)   | alizakhan.dps@gmail.com |
 
 ---
 
